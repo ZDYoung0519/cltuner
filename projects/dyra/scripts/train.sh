@@ -1,6 +1,6 @@
 TASKID=$1
 CONFIG=projects/dyra/scripts/ucit_llava_7b_v15pi.py
-WORKDIR=work_dirs/dyra/ucit_llava_7b_v15pi_dyra
+WORKDIR=work_dirs/dyra/ucit_llava_7b_v15pi
 
 
 if [ "$TASKID" -gt 0 ]; then
@@ -23,16 +23,16 @@ echo "Work dir: $WORKDIR"
 echo "Checkpoint: $LASTCKPT"
 
 # train
-# torchrun --nproc_per_node=$NGPUS cltuner/tools/train.py \
-#     $CONFIG  \
-#     --cur-task $TASKID \
-#     --cfg-options model.pretrained_pth=$LASTCKPT \
-#         model.cur_task=$TASKID \
-#         model.llm_lora.cur_task=$TASKID \
-#         model.llm_lora.lora_init_file=work_dirs/tadyra/ucit_llava_7b_v15pi_tadyra/task0/dyra_init.pt \
-#     --work-dir $WORKDIR/task$TASKID \
-#     --launcher pytorch \
-#     --deepspeed deepspeed_zero2
+torchrun --nproc_per_node=$NGPUS cltuner/tools/train.py \
+    $CONFIG  \
+    --cur-task $TASKID \
+    --cfg-options model.pretrained_pth=$LASTCKPT \
+        model.cur_task=$TASKID \
+        model.llm_lora.cur_task=$TASKID \
+        model.llm_lora.lora_init_file=work_dirs/tadyra/ucit_llava_7b_v15pi_tadyra/task0/dyra_init.pt \
+    --work-dir $WORKDIR/task$TASKID \
+    --launcher pytorch \
+    --deepspeed deepspeed_zero2
 
 # get the trained checkpoint
 CKPT=$(cat $WORKDIR/task$TASKID/last_checkpoint)

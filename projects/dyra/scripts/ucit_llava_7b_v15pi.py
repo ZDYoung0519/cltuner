@@ -63,8 +63,8 @@ SYSTEM = ""
 sample_ratio = 1
 
 # Scheduler & Optimizer
-batch_size = 32  # per_device
-accumulative_counts = 1
+batch_size = 16  # per_device
+accumulative_counts = 2
 dataloader_num_workers = 4
 max_epochs = 1
 optim_type = AdamW
@@ -73,6 +73,9 @@ betas = (0.9, 0.999)
 weight_decay = 0
 max_norm = 1  # grad clip
 warmup_ratio = 0.03
+paramwise_cfg = dict(
+    custom_keys={'projector.model': dict(lr_mult=0.1)}
+)
 
 # Save
 save_steps = 200
@@ -351,9 +354,7 @@ optim_wrapper = dict(
     accumulative_counts=accumulative_counts,
     loss_scale="dynamic",
     dtype="float16",
-    paramwise_cfg=dict(
-        custom_keys={'projector.model': dict(lr_mult=0.1)}
-    )
+    paramwise_cfg=paramwise_cfg
 )
 
 # learning policy
