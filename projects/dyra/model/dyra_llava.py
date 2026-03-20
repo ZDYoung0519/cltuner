@@ -79,8 +79,8 @@ class DyraLLaVAModel(LLaVAModel):
             router_loss_ceof = 1e-3,
         ):
         self.router = nn.Linear(
-            in_featuers=self.visual_encoder.config.hidden_size + self.text_encoder.config.hidden_size,
-            out_featuers=self.llm.peft_config['default'].num_experts,
+            in_features=self.visual_encoder.config.hidden_size + self.text_encoder.config.hidden_size,
+            out_features=self.llm.peft_config['default'].num_experts,
             bias=router_bias
         )
         self.router_criterion = nn.CrossEntropyLoss()
@@ -121,7 +121,7 @@ class DyraLLaVAModel(LLaVAModel):
         data["pixel_values"] = pixel_values
 
         # get expert weight for llm lora
-        expert_weights, router_loss = self._get_expert_weights(self, visual_outputs, text_outputs)
+        expert_weights, router_loss = self._get_expert_weights(visual_outputs, text_outputs)
         self.llm._set_expert_weights(expert_weights)
         self.router_loss = router_loss * self.router_loss_ceof if not self.use_trained_routing else 0
         return data
@@ -139,7 +139,9 @@ class DyraLLaVAModel(LLaVAModel):
         features = torch.cat([visual_features, text_features], dim=-1).detach()
         logits = self.router(features) / self.router_temp
         logits[:, (self.cur_task+1):] = float('-inf')
-        loss = self.router_criterion(logits)            # B, T
+
+        targets = torch.LongTensor([self.cur_task] * logits.shape[0]).to(logits.device)
+        loss = self.router_criterion(logits, targets)            # B, T
         with torch.no_grad():
             expert_weights = nn.Softmax(dim=-1)(logits).mean(0).detach()
         return expert_weights, loss
