@@ -33,24 +33,15 @@ from cltuner.dataset.evalutaion import BaseEvalDataset
 
 from mmengine.config import read_base
 with read_base():
-    from ....configs.data import (
-        llm_llava_v15pi,
-        projector_llava_v15pi,
-        clip_vit_large_p14_336,
-        data_root_ucit,
-        data_root_ucit_offline,
-        image_folder_ucit
-    )
-
-
+    from ....configs.data import *
 
 #######################################################################
 #                          PART 1  Settings                           #
 #######################################################################
 # Model
 # Specify the pretrained pth
-llm_name_or_path = llm_llava_v15pi
-pretrained_pth = projector_llava_v15pi
+llm_name_or_path = llm_llava_v15_7b
+pretrained_pth = projector_llava_v15_7b
 visual_encoder_name_or_path = clip_vit_large_p14_336
 
 # Data
@@ -142,6 +133,10 @@ model = dict(
     text_tokenizer=dict(
         type=CLIPTokenizer.from_pretrained,
         pretrained_model_name_or_path=visual_encoder_name_or_path
+    ),
+    router_args=dict(
+        router_bias=True,
+        router_temp=5
     )
 )
 

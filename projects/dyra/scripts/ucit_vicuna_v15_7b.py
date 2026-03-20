@@ -16,6 +16,8 @@ from transformers import (
     BitsAndBytesConfig,
     CLIPImageProcessor,
     CLIPVisionModel,
+    CLIPTextModel,
+    CLIPTokenizer
 )
 from xtuner.dataset.map_fns import llava_map_fn, template_map_fn_factory
 from xtuner.dataset.samplers import LengthGroupedSampler
@@ -31,24 +33,15 @@ from cltuner.dataset.evalutaion import BaseEvalDataset
 
 from mmengine.config import read_base
 with read_base():
-    from ....configs.data import (
-        llm_llava_v15,
-        projector_llava_v15,
-        clip_vit_large_p14_336,
-        data_root_ucit,
-        data_root_ucit_offline,
-        image_folder_ucit
-    )
-
-from peft.tuners.dyra import DyraConfig
+    from ....configs.data import *
 
 #######################################################################
 #                          PART 1  Settings                           #
 #######################################################################
 # Model
 # Specify the pretrained pth
-llm_name_or_path = llm_llava_v15
-pretrained_pth = projector_llava_v15
+llm_name_or_path = llm_vicuna_v15_7b
+pretrained_pth = None
 visual_encoder_name_or_path = clip_vit_large_p14_336
 
 # Data
@@ -62,7 +55,7 @@ sample_ratio = 1
 
 # Scheduler & Optimizer
 batch_size = 16  # per_device
-accumulative_counts = 1
+accumulative_counts = 2
 dataloader_num_workers = 4
 max_epochs = 1
 optim_type = AdamW
@@ -71,10 +64,14 @@ betas = (0.9, 0.999)
 weight_decay = 0
 max_norm = 1  # grad clip
 warmup_ratio = 0.03
+paramwise_cfg = dict(
+    custom_keys={'projector.model': dict(lr_mult=0.1)}
+)
 
 # Save
 save_steps = 200
 save_total_limit = 2  # Maximum checkpoints to keep (-1 means unlimited)
+
 
 #######################################################################
 #            PART 2  Model & Tokenizer & Image Processor              #
@@ -92,8 +89,10 @@ image_processor = dict(
     trust_remote_code=True,
 )
 
+from projects.dyra.model.dyra_llava import DyraLLaVAModel
+from peft.tuners.dyra import MoedyraConfig
 model = dict(
-    type=LLaVAModel,
+    type=DyraLLaVAModel,
     freeze_llm=True,
     freeze_visual_encoder=True,
     pretrained_pth=pretrained_pth,
@@ -102,19 +101,19 @@ model = dict(
         pretrained_model_name_or_path=llm_name_or_path,
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        quantization_config=dict(
-            type=BitsAndBytesConfig,
-            load_in_4bit=True,
-            load_in_8bit=False,
-            llm_int8_threshold=6.0,
-            llm_int8_has_fp16_weight=False,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-        ),
+        # quantization_config=dict(
+        #     type=BitsAndBytesConfig,
+        #     load_in_4bit=True,
+        #     load_in_8bit=False,
+        #     llm_int8_threshold=6.0,
+        #     llm_int8_has_fp16_weight=False,
+        #     bnb_4bit_compute_dtype=torch.float16,
+        #     bnb_4bit_use_double_quant=True,
+        #     bnb_4bit_quant_type="nf4",
+        # ),
     ),
     llm_lora=dict(
-        type=DyraConfig,
+        type=MoedyraConfig,
         r=16,
         lora_alpha=32,
         lora_dropout=0.05,
@@ -125,6 +124,20 @@ model = dict(
     visual_encoder=dict(
         type=CLIPVisionModel.from_pretrained,
         pretrained_model_name_or_path=visual_encoder_name_or_path,
+    ),
+    cur_task=0,
+    text_encoder=dict(
+        type=CLIPTextModel.from_pretrained,
+        pretrained_model_name_or_path=visual_encoder_name_or_path
+    ),
+    text_tokenizer=dict(
+        type=CLIPTokenizer.from_pretrained,
+        pretrained_model_name_or_path=visual_encoder_name_or_path
+    ),
+    router_args=dict(
+        router_bias=True,
+        router_temp=5,
+        num_experts=6
     )
 )
 
@@ -337,9 +350,7 @@ optim_wrapper = dict(
     accumulative_counts=accumulative_counts,
     loss_scale="dynamic",
     dtype="float16",
-    paramwise_cfg=dict(
-        custom_keys={'projector.model': dict(lr_mult=0.1)}
-    )
+    paramwise_cfg=paramwise_cfg
 )
 
 # learning policy
